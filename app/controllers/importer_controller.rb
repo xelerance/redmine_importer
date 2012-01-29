@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-require 'fastercsv'
+require 'faster_csv'
 require 'tempfile'
 
 class MultipleIssuesForUniqueValue < Exception
