@@ -8,7 +8,7 @@ ja:
   label_upload_wrapper: "引用文字："
   
   label_load_rules: "保存されたルールを読み込む"
-  label_toplines: "{{value}}先頭："
+  label_toplines: "%{value}先頭："
   label_match_columns: "各列のフィールドとの対応"
   label_match_select: "各列が対応するフィールドの選択："
   label_import_rule: "インポートのルール"
@@ -24,10 +24,10 @@ ja:
   label_rule_name: "ルール名を入力："
   
   label_import_result: "インポート結果"
-  label_result_notice: "{{handle_count}}行が処理されました。{{success_count}}行が正しくインポートされました。"
+  label_result_notice: "%{handle_count}行が処理されました。%{success_count}行が正しくインポートされました。"
   label_result_projects: "対象となったプロジェクト："
-  label_result_issues: "{{count}}行"
-  label_result_failed: "{{count}}行が失敗："
+  label_result_issues: "%{count}行"
+  label_result_failed: "%{count}行が失敗："
   
   option_ignore: "無視"
   
@@ -36,5 +36,5 @@ ja:
   button_save_rules_and_submit: "対応ルールを保存して確認"
 
   text_rmi_specify_unique_field_for_update: "「既存のチケットを更新」を選択する場合は、一意な値がある欄を選択する必要があります。"
-  text_rmi_specify_unique_field_for_column: "列「{{column}}」が他のチケットを一意に特定できるように、一意な値がある欄を選択する必要があります。" 
+  text_rmi_specify_unique_field_for_column: "列「%{column}」が他のチケットを一意に特定できるように、一意な値がある欄を選択する必要があります。" 
 
