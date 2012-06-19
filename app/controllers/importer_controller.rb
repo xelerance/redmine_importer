@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-require 'faster_csv'
 require 'tempfile'
 
 class MultipleIssuesForUniqueValue < Exception
@@ -14,11 +13,12 @@ class Journal < ActiveRecord::Base
   end
 end
 
-class ActionController::Flash::FlashHash < Hash
+class ActionDispatch::Flash::FlashHash
   def append(key,msg)
-    if !self.has_key?(key)
+    if !self.key?(key)
       self[key] = msg
     else
+      return if self[key].size > 1024
       self[key] += "<br />"+msg
     end
   end
@@ -52,6 +52,8 @@ class ImporterController < ApplicationController
     file_data = params[:file].read
     iip.csv_data = (converter ? converter.call(file_data) : file_data)
     iip.save
+
+    p params[:file]
     
     # Put the timestamp in the params to detect
     # users with two imports in progress
@@ -63,8 +65,8 @@ class ImporterController < ApplicationController
     i = 0
     @samples = []
     
-    FasterCSV.new(iip.csv_data, {:headers=>true,
-    :encoding=>"U", :quote_char=>iip.quote_char, :col_sep=>iip.col_sep}).each do |row|
+    CSV.parse(iip.csv_data.force_encoding("UTF-8"), {:headers=>true,
+    :quote_char=>iip.quote_char, :col_sep=>iip.col_sep}).each do |row|
       @samples[i] = row
      
       i += 1
@@ -226,7 +228,7 @@ class ImporterController < ApplicationController
       return
     end
 
-    FasterCSV.new(iip.csv_data, {:headers=>true, :encoding=>"U", 
+    CSV.parse(iip.csv_data.force_encoding("UTF-8"), {:headers=>true,
         :quote_char=>iip.quote_char, :col_sep=>iip.col_sep}).each do |row|
 
       project = Project.find_by_name(row[attrs_map["project"]])
@@ -238,7 +240,7 @@ class ImporterController < ApplicationController
         tracker = Tracker.find_by_name(row[attrs_map["tracker"]])
         status = IssueStatus.find_by_name(row[attrs_map["status"]])
         author = attrs_map["author"] ? user_for_login!(row[attrs_map["author"]]) : User.current
-        priority = Enumeration.find_by_name(row[attrs_map["priority"]])
+        priority = IssuePriority.find_by_name(row[attrs_map["priority"]])
         category_name = row[attrs_map["category"]]
         category = IssueCategory.find_by_project_id_and_name(project.id, category_name)
         if (!category) && category_name && category_name.length > 0 && add_categories
@@ -263,7 +265,7 @@ class ImporterController < ApplicationController
       end
 
       # translate unique_attr if it's a custom field -- only on the first issue
-      if !unique_attr_checked
+      if !unique_attr.nil? and !unique_attr_checked
         if unique_field && !ISSUE_ATTRS.include?(unique_attr.to_sym)
           issue.available_custom_fields.each do |cf|
             if cf.name == unique_attr
@@ -330,7 +332,7 @@ class ImporterController < ApplicationController
       issue.status_id = status != nil ? status.id : issue.status_id
       issue.priority_id = priority != nil ? priority.id : issue.priority_id
       issue.subject = row[attrs_map["subject"]] || issue.subject
-      
+
       # optional attributes
       issue.description = row[attrs_map["description"]] || issue.description
       issue.category_id = category != nil ? category.id : issue.category_id
@@ -420,7 +422,7 @@ class ImporterController < ApplicationController
         @failed_issues[@failed_count] = row
         flash.append(:warning,"The following data-validation errors occurred on issue #{@failed_count} in the list below")
         issue.errors.each do |attr, error_message|
-          flash.append(:warning,"&nbsp;&nbsp;"+error_message)
+          flash.append(:warning,"&nbsp;&nbsp;"+attr.to_s+error_message)
         end
       else
         if unique_field

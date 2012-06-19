@@ -10,18 +10,19 @@
 	<% end %>
 </fieldset>
 -->
-<% form_tag({:action => 'result'}, {:multipart => true}) do %>
+<%= form_tag({:action => 'result'}, {:multipart => true}) do %>
 	<%= hidden_field_tag 'project_id', @project.id %>
 	<%= hidden_field_tag 'import_timestamp', @import_timestamp %>
 	<fieldset class="box"><legend><%= l('redmine_importer.label_match_select') %></legend>
 	<% @headers.each do |column| %>
-	     <% matched = ''
-	        @attrs.each do |k,v| if v.to_s.casecmp(column.to_s.sub(" ") {|sp| "_" }) == 0 or k.to_s.casecmp(column.to_s) == 0 then matched = v end end
-	        %>
-		 <label class="tabular"><%= column %>:
-		 <%= select_tag "fields_map[#{column}]", "<option value=\"\">#{l('redmine_importer.option_ignore')}</option>" + 
-				options_for_select( @attrs, matched ) %></label>
-	<% end %>
+    <% matched = ''
+      @attrs.each do |k,v|
+        matched = v.to_s if v.to_s.gsub(/\s/,'_').gsub(/%_Done/,'done_ratio').casecmp(column) == 0
+      end
+    %>
+    <label class="tabular"><%= column %>:
+    <%= select_tag "fields_map[#{column}]", options_for_select([l('redmine_importer.option_ignore')] + @attrs, matched ) %></label>
+  <% end %>
 	</fieldset>
 	
 	<fieldset class="box"><legend><%= l('redmine_importer.label_import_rule') %></legend>
@@ -31,9 +32,9 @@
 		<label><%= l('redmine_importer.label_unique_field') %>
 		<%= select_tag "unique_field", options_for_select([ l('redmine_importer.option_ignore') ] + @headers, @headers.include?(l('redmine_importer.field_subject')) ? l('redmine_importer.field_subject') : nil) %></label><br/>
 
-    <label><%= check_box_tag "send_emails", true %> <%= l('redmine_importer.label_importer_send_emails') %> </label><br/>
-    <label><%= check_box_tag "add_categories", true, true %> <%= l('redmine_importer.label_importer_add_categories') %> </label><br/>		
-    <label><%= check_box_tag "add_versions", true, true %> <%= l('redmine_importer.label_importer_add_versions') %> </label><br/>		
+    <label><%= check_box_tag "send_emails", true, false%> <%= l('redmine_importer.label_importer_send_emails') %> </label><br/>
+    <label><%= check_box_tag "add_categories", true, false %> <%= l('redmine_importer.label_importer_add_categories') %> </label><br/>		
+    <label><%= check_box_tag "add_versions", true, false %> <%= l('redmine_importer.label_importer_add_versions') %> </label><br/>		
 		<label><%= check_box_tag "update_issue", true, false %> <%= l('redmine_importer.label_update_issue') %>
 		</label><br/>
 		<%= observe_field("update_issue", :function => <<END_OF_STRING
@@ -73,7 +74,7 @@ END_OF_STRING
 	<tbody>
 	<% @samples.each do |issue| -%>
 	<tr class="<%= cycle("odd", "even") %>">
-	    <% issue.each do |column| %><%= content_tag 'td', column[1] %><% end %>
+	    <% issue.each do |column| %><%= content_tag 'td', column[1].force_encoding("UTF-8") %><% end %>
 	</tr>
 	<% end %>
 	<tr class="<%= cycle("odd", "even") %>">
