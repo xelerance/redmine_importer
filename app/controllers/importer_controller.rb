@@ -34,7 +34,7 @@ class ImporterController < ApplicationController
   ISSUE_ATTRS = [:id, :subject, :assigned_to, :fixed_version,
     :author, :description, :category, :priority, :tracker, :status,
     :start_date, :due_date, :done_ratio, :estimated_hours,
-    :parent_issue, :watchers ]
+    :parent_issue, :watchers, :created_on, :updated_on ]
   
   def index
   end
@@ -257,6 +257,7 @@ class ImporterController < ApplicationController
         issue.project_id = project != nil ? project.id : @project.id
         issue.tracker_id = tracker != nil ? tracker.id : default_tracker
         issue.author_id = author != nil ? author.id : User.current.id
+
       rescue ActiveRecord::RecordNotFound
         @failed_count += 1
         @failed_issues[@failed_count] = row
@@ -342,6 +343,7 @@ class ImporterController < ApplicationController
       issue.fixed_version_id = fixed_version_id != nil ? fixed_version_id : issue.fixed_version_id
       issue.done_ratio = row[attrs_map["done_ratio"]] || issue.done_ratio
       issue.estimated_hours = row[attrs_map["estimated_hours"]] || issue.estimated_hours
+      issue.update_attributes({:created_on => row[attrs_map["created_on"]], :updated_on => row[attrs_map["updated_on"]] })
 
       # parent issues
       begin
