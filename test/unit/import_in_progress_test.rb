@@ -8,3 +8,12 @@ class ImportInProgressTest < ActiveSupport::TestCase
     assert true
   end
 end
+
+class ImportCvsHeadersTest < ActiveSupport::TestCase
+  fixtures :import_saved_headers
+
+  # Replace this with your real tests.
+  def test_truth
+    assert true
+  end
+end
