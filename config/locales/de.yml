@@ -1,7 +1,7 @@
 de:
   label_import: "Import"
   label_issue_importer: "Ticket Importer"
-  label_upload_notice: "Bitte wählen Sie die zu importierende CSV-Datei aus. Die Datei muss eine Überschriftenzeile haben. Die maximale Grösse der Datei ist 4MB."
+  label_upload_notice: "Bitte wählen Sie die zu importierende CSV-Datei aus OR XML. Die Datei muss eine Überschriftenzeile haben. Die maximale Grösse der Datei ist 4MB."
   label_upload_format: "Dateiformat-Einstellungen"
   label_upload_encoding: "Encoding:"
   label_upload_splitter: "Trennzeichen:"
