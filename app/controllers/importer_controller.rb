@@ -25,6 +25,7 @@ class ActionController::Flash::FlashHash < Hash
   end
 end
 
+# bozz
 module ApplicationHelper
    def render_flash_messages
    end 
@@ -46,10 +47,13 @@ class ImporterController < ApplicationController
     :author, :description, :category, :priority, :tracker, :status,
     :start_date, :due_date, :done_ratio, :estimated_hours,
     :parent_issue, :watchers ]
-  
+ 
+
   def index
  
      @csv_headers = ImportInProgress.find_by_sql [ 'SELECT * FROM import_saved_headers ORDER BY id' ]
+
+     logger.debug("BOZZ: Cleanup Old Result Temp files")
 
      # Find all results file for this user
      deletetmpfiles = 'results_' << User.current.id.to_s() << '_*'  
@@ -60,14 +64,18 @@ class ImporterController < ApplicationController
      File.unlink(tempcsvfile.path)
 
      Dir.glob(File.join(tempdirname ,deletetmpfiles)) do |f| 
+        logger.debug("BOZZ: Deleting: " << f)
         #begin
            File.delete(f) 
         #rescue
         #end
      end
+
+     # BOZZ
      # not Sure why the following line is not working at this time
      # this is porbably the correct way of ding this, but the above works
      #@csv_headers = ImportSavedHeader.find_all_by_id()
+     logger.debug("BOZZ: Table Data `import_saved_headers` #{@csv_headers.inspect}")
   end
 
   def match
@@ -75,6 +83,8 @@ class ImporterController < ApplicationController
     ImportInProgress.delete_all(["user_id = ?",User.current.id])
 
     @savedHeaders = ImportSavedHeader.find(:all)
+    logger.debug("BOZZ: `import_saved_headers` #{@savedHeaders.inspect}")
+
     # save import-in-progress data
     iip = ImportInProgress.find_or_create_by_user_id(User.current.id)
     iip.quote_char = params[:wrapper]
@@ -84,27 +94,35 @@ class ImporterController < ApplicationController
 
     csv_header_id = params[:csv_header][:id]
 
+    logger.debug("BOZZ: After the file was uploaded") 
     readcsvdata = params[:file].read
     begin
        #uploadedFile = File.open(params[:file])
        FasterCSV.parse(readcsvdata)
        iip.csv_data = readcsvdata
+       logger.debug("BOZZ: We have a CSV File, So Just Process it")
     rescue
+       logger.debug("BOZZ: Parsing CSV Failed, lets assume this is XML and Convert IT")
        xmldoc = Nokogiri::XML(readcsvdata)
 
+    
        csv_data = ''
        if csv_header_id != ''
+             logger.debug("BOZZ: Use the Header From the Database")
              dbheaders = ImportInProgress.find_by_sql [ 'SELECT title, csv_header FROM import_saved_headers WHERE id = ? LIMIT 1', csv_header_id ]
              dbheaders.each do |record| 
                 #csv_data << record.csv_header << "\n"
                 @header_title = record.title 
                 csv_data << record.csv_header 
+                logger.debug("BOZZ: SELECTED HEADER : " << record.csv_header)
              end
        end
 
        FasterCSV.generate(csv_data, {:col_sep => ",", :force_quotes => true, :quote_char => '"', :encoding => "UTF-8"}) do |csv|
           # INSERT a HEADER based on the XML Fields
+          logger.debug("BOZZ: Input value '" << csv_header_id  << "'")
           if csv_header_id == ''
+             logger.debug("BOZZ: Generate the Header Based on the XML FILE")
              csv << xmldoc.xpath('/*/*[position()=1]/*').map(&:name)
           end
           xmldoc.xpath('/*/*').each do |row_xml|
@@ -115,7 +133,11 @@ class ImporterController < ApplicationController
        iip.csv_data = csv_data
     end # rescue
 
+    logger.debug("BOZZ: DATA: " << csv_data.inspect)
+    logger.debug("BOZZ: Looks like we are good to go we have csv DATA to Process")
     iip.save
+    # logger.debug("BOZZ: IIP #{iip}")
+    # logger.debug("BOZZ: DATA #{iip.inspect}")
     pp iip
     
     # Put the timestamp in the params to detect
@@ -230,6 +252,7 @@ class ImporterController < ApplicationController
 
   def csv_dump
     tmpfile = params[:tmpfile]
+    logger.debug "BOZZ: Failed Record File: " << tmpfile
     
     send_file(tmpfile ,:type => 'text/csv; charset=iso-8859-1; header=present',:filename => 'FailedRecords.csv',:disposition => 'attachment')
     # This doesn't work because the file gets deleted before the send file is finished
@@ -255,9 +278,9 @@ class ImporterController < ApplicationController
     tempcsvfile = Tempfile.new('results_' << User.current.id.to_s() << '_')  
     logger.debug "BOZZ: DUMP path: " << tempcsvfile.path
     @tmpfilelocation = tempcsvfile.path
-    
     # Retrieve saved import data
     iip = ImportInProgress.find_by_user_id(User.current.id)
+
 
     if iip == nil
       flash[:error] = "No import is currently in progress"
@@ -269,7 +292,7 @@ class ImporterController < ApplicationController
           "This import cannot be completed"
       return
     end
-    
+
     default_tracker = params[:default_tracker]
     update_issue = params[:update_issue]
     unique_field = params[:unique_field].empty? ? nil : params[:unique_field]
@@ -290,13 +313,16 @@ class ImporterController < ApplicationController
     mycsvhead = []
     if params[:save_header] 
        save_header_title = params[:save_header_title]
+       logger.debug "BOZZ: Saving the header Choices to the DB"
        #get the Header record from the posted CVS Data
        FasterCSV.new(iip.csv_data, {:headers=>false, :encoding=>iip.encoding, :quote_char=>iip.quote_char, :col_sep=>iip.col_sep}).each do |row|
+          logger.debug "BOZZ: HEAD: " << row.inspect 
           mycsvhead = row
           break
        end
 
        # Match those to the fields Mapped for the correct Column name
+       logger.debug "BOZZ: FIELDMAP: " << fields_map.inspect
        myhead = []
        i = 0
        mycsvhead.each do |text|
@@ -538,6 +564,7 @@ class ImporterController < ApplicationController
         @failed_issues[@failed_count] = row
         flash.append(:warning,"The following data-validation errors occurred on issue #{@failed_count} in the list below")
         issue.errors.each do |attr, error_message|
+          # logger.debug "BOZZ: ERROR ON SAVE"+error_message
           flash.append(:warning,"&nbsp;&nbsp;"+error_message)
         end
       else
@@ -549,13 +576,18 @@ class ImporterController < ApplicationController
           if update_issue
             if Setting.notified_events.include?('issue_updated') && (!issue.current_journal.empty?)
                (issue.recipients + issue.watcher_recipients).uniq.each do |recipient|
+                  logger.debug "BOZZ: recipient UPDATING"
                   Mailer.deliver_issue_edit(issue, recipient)
+                  #Mailer.deliver_issue_edit(issue.current_journal, 'bozz@bozzit.com')
                end
             end
           else
             if Setting.notified_events.include?('issue_added')
                (issue.recipients + issue.watcher_recipients).uniq.each do |recipient|
+                  logger.debug "BOZZ: recipient ADDING"
                   Mailer.deliver_issue_add(issue, recipient)
+                  # Mailer.deliver_issue_add(issue, 'bozz@bozzit.com')
+               end
             end
           end
         end
@@ -596,6 +628,7 @@ class ImporterController < ApplicationController
       @failed_issues = @failed_issues.sort
       @headers = @failed_issues[0][1].headers
 
+       logger.debug "BOZZ: Convert Failed Records to CSV for Download: "
        csv_data = ''
        FasterCSV.generate(csv_data, {:col_sep => ",", :force_quotes => true, :quote_char => '"', :encoding => "UTF-8"}) do |csv|
           csv << @headers
@@ -615,6 +648,7 @@ class ImporterController < ApplicationController
      if params[:del_header] != nil
         params[:del_header].each do |id|
            ImportSavedHeader.delete_all(["id = ?",id])
+           logger.debug "BOZZ: DELETING 'import_saved_headers' ID: " << id
         end
      end
     end
