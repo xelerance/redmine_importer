@@ -556,6 +556,7 @@ class ImporterController < ApplicationController
             if Setting.notified_events.include?('issue_added')
                (issue.recipients + issue.watcher_recipients).uniq.each do |recipient|
                   Mailer.deliver_issue_add(issue, recipient)
+               end
             end
           end
         end
