@@ -25,6 +25,18 @@ class ActionController::Flash::FlashHash < Hash
   end
 end
 
+module ApplicationHelper
+   def render_flash_messages
+   end 
+   def my_render_flash_messages
+      s = ''
+       flash.each do |k,v|
+         s << content_tag('div', v, :class => "flash #{k}")
+       end
+       s
+   end 
+end
+
 class ImporterController < ApplicationController
   unloadable
   
@@ -36,19 +48,75 @@ class ImporterController < ApplicationController
     :parent_issue, :watchers ]
   
   def index
+ 
+     @csv_headers = ImportInProgress.find_by_sql [ 'SELECT * FROM import_saved_headers ORDER BY id' ]
+
+     # Find all results file for this user
+     deletetmpfiles = 'results_' << User.current.id.to_s() << '_*'  
+
+     # Find the System's Temporary Directory Location
+     tempcsvfile = Tempfile.new('results_' << User.current.id.to_s() << '_')  
+     tempdirname = File.dirname(tempcsvfile.path)
+     File.unlink(tempcsvfile.path)
+
+     Dir.glob(File.join(tempdirname ,deletetmpfiles)) do |f| 
+        #begin
+           File.delete(f) 
+        #rescue
+        #end
+     end
+     # not Sure why the following line is not working at this time
+     # this is porbably the correct way of ding this, but the above works
+     #@csv_headers = ImportSavedHeader.find_all_by_id()
   end
 
   def match
     # Delete existing iip to ensure there can't be two iips for a user
     ImportInProgress.delete_all(["user_id = ?",User.current.id])
+
+    @savedHeaders = ImportSavedHeader.find(:all)
     # save import-in-progress data
     iip = ImportInProgress.find_or_create_by_user_id(User.current.id)
     iip.quote_char = params[:wrapper]
     iip.col_sep = params[:splitter]
     iip.encoding = params[:encoding]
     iip.created = Time.new
-    iip.csv_data = params[:file].read
+
+    csv_header_id = params[:csv_header][:id]
+
+    readcsvdata = params[:file].read
+    begin
+       #uploadedFile = File.open(params[:file])
+       FasterCSV.parse(readcsvdata)
+       iip.csv_data = readcsvdata
+    rescue
+       xmldoc = Nokogiri::XML(readcsvdata)
+
+       csv_data = ''
+       if csv_header_id != ''
+             dbheaders = ImportInProgress.find_by_sql [ 'SELECT title, csv_header FROM import_saved_headers WHERE id = ? LIMIT 1', csv_header_id ]
+             dbheaders.each do |record| 
+                #csv_data << record.csv_header << "\n"
+                @header_title = record.title 
+                csv_data << record.csv_header 
+             end
+       end
+
+       FasterCSV.generate(csv_data, {:col_sep => ",", :force_quotes => true, :quote_char => '"', :encoding => "UTF-8"}) do |csv|
+          # INSERT a HEADER based on the XML Fields
+          if csv_header_id == ''
+             csv << xmldoc.xpath('/*/*[position()=1]/*').map(&:name)
+          end
+          xmldoc.xpath('/*/*').each do |row_xml|
+             # INSERT a row for EACH xlm block
+             csv << row_xml.xpath('./*').map(&:text)
+          end # end xpath
+       end   # enc CS
+       iip.csv_data = csv_data
+    end # rescue
+
     iip.save
+    pp iip
     
     # Put the timestamp in the params to detect
     # users with two imports in progress
@@ -159,6 +227,14 @@ class ImporterController < ApplicationController
     end
     @version_id_by_name[name]
   end
+
+  def csv_dump
+    tmpfile = params[:tmpfile]
+    
+    send_file(tmpfile ,:type => 'text/csv; charset=iso-8859-1; header=present',:filename => 'FailedRecords.csv',:disposition => 'attachment')
+    # This doesn't work because the file gets deleted before the send file is finished
+    # File.delete(tmpfile)
+  end
   
   def result
     @handle_count = 0
@@ -174,9 +250,15 @@ class ImporterController < ApplicationController
     @user_by_login = Hash.new
     # Cache of Version by name
     @version_id_by_name = Hash.new
+   
+
+    tempcsvfile = Tempfile.new('results_' << User.current.id.to_s() << '_')  
+    logger.debug "BOZZ: DUMP path: " << tempcsvfile.path
+    @tmpfilelocation = tempcsvfile.path
     
     # Retrieve saved import data
     iip = ImportInProgress.find_by_user_id(User.current.id)
+
     if iip == nil
       flash[:error] = "No import is currently in progress"
       return
@@ -203,6 +285,46 @@ class ImporterController < ApplicationController
 
     # attrs_map is fields_map's invert
     attrs_map = fields_map.invert
+
+    # Build a header to be saved if the users decided to save his choices on the previous form
+    mycsvhead = []
+    if params[:save_header] 
+       save_header_title = params[:save_header_title]
+       #get the Header record from the posted CVS Data
+       FasterCSV.new(iip.csv_data, {:headers=>false, :encoding=>iip.encoding, :quote_char=>iip.quote_char, :col_sep=>iip.col_sep}).each do |row|
+          mycsvhead = row
+          break
+       end
+
+       # Match those to the fields Mapped for the correct Column name
+       myhead = []
+       i = 0
+       mycsvhead.each do |text|
+             if fields_map[text] == ''
+             myhead[i]   = text
+             else
+                myhead[i] =  fields_map[text]
+             end
+       i += 1
+       end
+      
+       # convert his array into proper csv data to save to the db
+       csv_data_final = FasterCSV.generate({:col_sep => ",", :force_quotes => true, :quote_char => '"', :encoding => "UTF-8"}) do |csv|
+          csv << myhead
+       end
+
+       logger.debug "BOZZ: HEADER TO BE SAVED: " << csv_data_final
+       findResult = ImportSavedHeader.find_by_title(save_header_title)
+       logger.debug "BOZZ: CREATE ONLY if it doesn't already exist"
+       if findResult == nil
+          newSavedHeader = ImportSavedHeader.new( :title => save_header_title, :csv_header => csv_data_final)
+          newSavedHeader.save
+          logger.debug "BOZZ: CREATED New Configuration"
+       #else
+          #ImportSavedHeader.update_all( {:csv_header => csv_data_final}, {:title => save_header_title})
+          #logger.debug "BOZZ: UPDATING Saved Configuration"
+       end
+    end
 
     # check params
     unique_error = nil
@@ -292,8 +414,7 @@ class ImporterController < ApplicationController
           
           # init journal
           note = row[journal_field] || ''
-          journal = issue.init_journal(author || User.current, 
-            note || '')
+          journal = issue.init_journal(author || User.current, note || '')
             
           @update_count += 1
           
@@ -427,11 +548,14 @@ class ImporterController < ApplicationController
         if send_emails
           if update_issue
             if Setting.notified_events.include?('issue_updated') && (!issue.current_journal.empty?)
-              Mailer.deliver_issue_edit(issue.current_journal)
+               (issue.recipients + issue.watcher_recipients).uniq.each do |recipient|
+                  Mailer.deliver_issue_edit(issue, recipient)
+               end
             end
           else
             if Setting.notified_events.include?('issue_added')
-              Mailer.deliver_issue_add(issue)
+               (issue.recipients + issue.watcher_recipients).uniq.each do |recipient|
+                  Mailer.deliver_issue_add(issue, recipient)
             end
           end
         end
@@ -471,6 +595,28 @@ class ImporterController < ApplicationController
     if @failed_issues.size > 0
       @failed_issues = @failed_issues.sort
       @headers = @failed_issues[0][1].headers
+
+       csv_data = ''
+       FasterCSV.generate(csv_data, {:col_sep => ",", :force_quotes => true, :quote_char => '"', :encoding => "UTF-8"}) do |csv|
+          csv << @headers
+       end
+
+       FasterCSV.generate(csv_data, {:col_sep => ",", :force_quotes => true, :quote_char => '"', :encoding => "UTF-8"}) do |csv|
+       @failed_issues.each do |id, issue| 
+            csv << issue
+        end 
+       end
+      tempcsvfile.print(csv_data) 
+      tempcsvfile.flush
+      tempcsvfile.close
+    else
+     # IF the user selected some Configs to delete, Delete them here upon 
+     # sucessfull IMPORT
+     if params[:del_header] != nil
+        params[:del_header].each do |id|
+           ImportSavedHeader.delete_all(["id = ?",id])
+        end
+     end
     end
     
     # Clean up after ourselves
