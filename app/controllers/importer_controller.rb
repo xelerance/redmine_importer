@@ -1,5 +1,7 @@
 require 'fastercsv'
 require 'tempfile'
+require 'pp'
+require 'nokogiri'
 
 class MultipleIssuesForUniqueValue < Exception
 end

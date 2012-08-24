@@ -9,11 +9,25 @@ The database is used for intermediate storage.
 
 To install:
 - Prerequisites: You'll need the fastercsv gem ('gem install fastercsv' as root).  Versions 1.4 through 1.5.3 are tested.
+- Prerequisites: Also needed nokogiri gem
 - Download the plugin to your vendors/plugins directory.  Be sure to maintain the correct folder name, 'redmine_importer'.
 - Run 'rake db:migrate_plugins RAILS_ENV=production'
 - Restart your redmine as appropriate (e.g., 'ruby script/server -e production')
 - Go to the Admin/Projects/../Modules
 - Enable "Importer"
+
+NOTE: if you get  'Error ActionController::Session::CookieStore::CookieOverflow'
+
+in config/environments/production.rb you may need to add:
+
+config.action_controller.session_store = :active_record_store
+
+Then RUN
+
+rake db:sessions:create RAILS_ENV=production
+rake db:migrate RAILS_ENV=production
+
+This will use the database to store the session information instead of a cookie that has a 4k Limit
 
 en, de, zh, pt-BR, and ja localizations included.
 The other localizations are up to date, but the zh is a little bit behind.
