@@ -2,6 +2,13 @@
     <%= stylesheet_link_tag 'importer', :plugin => 'redmine_importer' %>
 <% end %>
 
+<h2>Download Failed records</h2>
+<% form_tag({:action => 'csv_dump'}, {:multipart => true}) do %>
+  <%= hidden_field_tag 'project_id', @project.id %>
+  <%= hidden_field_tag 'tmpfile', @tmpfilelocation %>
+  <%= submit_tag "Download Failed List" ,:name => "csv" %>
+<% end %>
+
 <h2><%= l(:label_import_result) %></h2>
 <p><%= l(:label_result_notice, :handle_count => @handle_count, :success_count => @handle_count) %></p>
 <p><%= l(:label_result_projects) %><br/>
@@ -9,6 +16,8 @@
 <label class="tabular2"><%= project %>:</label><label class="tabular2"><%= l(:label_result_issues, count) %></label><br/>
 <% end %></p>
 <hr/>
+
+<%= my_render_flash_messages %>
 
 <% if @failed_count > 0 %>
 <%= l(:label_result_failed, @failed_count) %>

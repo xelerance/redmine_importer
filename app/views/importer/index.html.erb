@@ -1,3 +1,21 @@
+<% content_for :header_tags do %>
+<script type="text/javascript">
+jQuery(document).ready(function() {
+   jQuery('#commit').bind("click",function()
+   {
+       var imgVal = jQuery('#file').val();
+       if(imgVal=='')
+       {
+           alert("empty input file");
+           return false;
+       }
+       return true;
+   });
+});
+</script>
+<% end %>
+
+<%= my_render_flash_messages %>
 <h2><%=l(:label_issue_importer)%></h2>
 
 <% form_tag({:action => 'match'}, {:multipart => true}) do %>
@@ -15,9 +33,13 @@
 		
 		<p><label><%=l(:label_upload_wrapper)%></label>
 		<%= text_field_tag "wrapper", '"', {:size => 3, :maxlength => 1}%></p>
+
+		 <p><label>Saved FORMAT:</label>
+                <%= select( "csv_header", "id", @csv_headers.map {|u| [u.title,u.id]}, {:prompt => 'Default'}) %>
+                 </p>
 		
 	</fieldset>	
 
-	<%= submit_tag l(:button_upload) %>
+	<%= submit_tag l(:button_upload), :id => :commit %>
 <% end %>
 
